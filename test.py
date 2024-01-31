@@ -4,6 +4,7 @@ import numpy as np
 from bs4 import BeautifulSoup
 from multiprocessing import Process
 import random
+import time
 from fake_useragent import UserAgent
 from datetime import datetime, timedelta
 from itertools import groupby
@@ -472,21 +473,17 @@ def amazon_web_runner(links_ama):
 
 
 def flipkart_web_runner(links_flip):
-    i=0
     for linkf in links_flip:
-        if(i>2):
-            break
         print("Flipkart list tuple")
         try:
             content2 = fetch(f"https://www.flipkart.com{linkf}")
             extractor_flipkart(content2, linkf)
         except:
             print("Error in link")
-        i=i+1
 
 
-def main_database_updataion(query):
-    # query = input("Please Enter the product to be searched : ")
+def main_database_updataion():
+    query = input("Please Enter the product to be searched : ")
     # to flush all dta to fetch new data
     delete_records("AliExpress.AliExpress_Product",cursor3,AliExpress_DB)
     delete_records("Amazon.Amazon_Product",cursor1,Amazon_DB)
@@ -506,17 +503,17 @@ def main_database_updataion(query):
 
     # parallel processing in progress
 
-    p1 = Process(target=ecommerce, kwargs={"query": query})
-    p2 = Process(target=forever21, kwargs={"query": query})
+    # p1 = Process(target=ecommerce, kwargs={"query": query})
+    # p2 = Process(target=forever21, kwargs={"query": query})
     p3 = Process(target=amazon_web_runner, kwargs={"links_ama": links_ama})
     p4 = Process(target=flipkart_web_runner, kwargs={"links_flip": links_flip})
 
-    p1.start()
-    p2.start()
+    # p1.start()
+    # p2.start()
     p3.start()
     p4.start()
-    p1.join()
-    p2.join()
+    # p1.join()
+    # p2.join()
     p3.join()
     p4.join()
 
@@ -548,14 +545,14 @@ def fetch_allrecords_MV(dbcursor,tablename,query):
     # print("The values :!!!!!!!")
     # print(fetch_toprated(newlist))
     # to maintain analytics
-    maintain_cache(query,newlist)
+
     return newlist
 
 def fetch_toprated(newlist):
     res= sorted(newlist, key=lambda d: d['Rating'],reverse=True)
     return res
 
-def fetchmin_resocrds(newlist):
+def fetchmin_resocrds(newlist=global_lst):
     lst=[]
     print(newlist)
     minprice=newlist[0]["Price"]
@@ -565,7 +562,8 @@ def fetchmin_resocrds(newlist):
             lst.append(newlist[i])
     return lst
 
-def maintain_cache(query,newlist):
+def maintain_cache(newlist,query):
+
     counter = len(newlist)
     price = 0
     rating = 0
@@ -579,13 +577,12 @@ def maintain_cache(query,newlist):
     average_rating = float(rating/counter)
     sql = "INSERT INTO Global_Product_Search.Product_MV (query,AveragePrice,MajorBrand,AverageRating) VALUES (%s,%s,%s,%s)"
     val = (str(query), float(average_price), brands, float(average_rating))
-    print("The analytics are as follows:")
     print(val)
-    # try:
-    #     #     main_cursor.execute(sql, val)
-    #     # except Exception as e:
-    #     #     print(e)
-    #     # Global_Product_DB.commit()
+    try:
+        main_cursor.execute(sql, val)
+    except Exception as e:
+        print(e)
+    Global_Product_DB.commit()
 
 def delete_records(tablename,dbcursor,db):
     sql=f"DELETE FROM {tablename} "
@@ -593,11 +590,10 @@ def delete_records(tablename,dbcursor,db):
     db.commit()
 
 
-# if __name__ == "__main__":
-#     main_database_updataion()
-    # results1 = fetch_allrecords_MV(main_cursor, "Global_Product_Search.Global_Product")
-    # print(results1)
-    # print(maintain_cache(results1))
+if __name__ == "__main__":
+    main_database_updataion()
+    results1 = fetch_allrecords_MV(main_cursor, "Global_Product_Search.Global_Product","phone")
+    maintain_cache(results1,"query")
     # print(fetchmin_resocrds(results1))
 
 
@@ -612,76 +608,75 @@ def delete_records(tablename,dbcursor,db):
 
 
 
-
-app = Flask(__name__)
-CORS(app)
-
-
-@app.route('/', methods=['GET'])
-def home():
-    data = {'message': 'Hello! Welcome to our backend'}
-    return jsonify(data)
-
-
-@app.route('/api/data', methods=['POST'])
-def process_data():
-    if request.method == 'POST':
-        # Get the data from the request
-        data = request.get_json()
-
-        # Extract the string from the data
-        # print(data)
-        input_string = data.get('inputString', '')
-        print((input_string))
-
-        results=main_database_updataion(input_string)
-        maintain_cache("query",results)
-
-        global global_lst
-        global_lst = results
-        print(global_lst)
-        # new_string=str(results)
-        # Return the string in the response as JSON
-        response_data = {'results': results}
-        # response_data = {'outputString': input_string}
-        return jsonify(response_data)
-
-@app.route('/api/getMinPrice', methods=['POST'])
-def process_data1():
-    if request.method == 'POST':
-        # Get the data from the request
-        data = request.get_json()
-
-        # Extract the string from the data
-        # print(data)
-        input_string = data.get('inputString', '')
-        print(input_string)
-        results=fetchmin_resocrds(input_string)
-
-
-        # new_string=str(results)
-        # Return the string in the response as JSON
-        response_data = {'results': results}
-        # response_data = {'outputString': input_string}
-        return jsonify(response_data)
-
-@app.route('/api/getTopRated', methods=['POST'])
-def process_data2():
-    if request.method == 'POST':
-        # Get the data from the request
-        data = request.get_json()
-
-        # Extract the string from the data
-        # print(data)
-        input_string = data.get('inputString', '')
-
-        results=fetch_toprated(input_string)
-        # new_string=str(results)
-        # Return the string in the response as JSON
-        response_data = {'results': results}
-        # response_data = {'outputString': input_string}
-        return jsonify(response_data)
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+#
+#
+# app = Flask(__name__)
+# CORS(app)
+#
+#
+# @app.route('/', methods=['GET'])
+# def home():
+#     data = {'message': 'Hello! Welcome to our backend'}
+#     return jsonify(data)
+#
+#
+# @app.route('/api/data', methods=['POST'])
+# def process_data():
+#     if request.method == 'POST':
+#         # Get the data from the request
+#         data = request.get_json()
+#
+#         # Extract the string from the data
+#         # print(data)
+#         input_string = data.get('inputString', '')
+#
+#         results=main_database_updataion(input_string)
+#         global global_lst
+#         global_lst = results
+#         print(global_lst)
+#         # new_string=str(results)
+#         # Return the string in the response as JSON
+#         response_data = {'results': results}
+#         # response_data = {'outputString': input_string}
+#         return jsonify(response_data)
+#
+# @app.route('/api/getMinPrice', methods=['POST'])
+# def process_data1():
+#     if request.method == 'POST':
+#         # Get the data from the request
+#         data = request.get_json()
+#
+#         # Extract the string from the data
+#         # print(data)
+#         input_string = data.get('inputString', '')
+#         results=fetchmin_resocrds()
+#
+#
+#         # new_string=str(results)
+#         # Return the string in the response as JSON
+#         response_data = {'results': results}
+#         # response_data = {'outputString': input_string}
+#         return jsonify(response_data)
+#
+# @app.route('/api/getTopRated', methods=['POST'])
+# def process_data2():
+#     if request.method == 'POST':
+#         # Get the data from the request
+#         data = request.get_json()
+#
+#         # Extract the string from the data
+#         # print(data)
+#         input_string = data.get('inputString', '')
+#
+#         results=main_database_updataion(input_string)
+#         global_lst = results
+#         print(global_lst)
+#         # new_string=str(results)
+#         # Return the string in the response as JSON
+#         response_data = {'results': results}
+#         # response_data = {'outputString': input_string}
+#         return jsonify(response_data)
+#
+#
+# if __name__ == '__main__':
+#     app.run(debug=True)
